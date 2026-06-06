@@ -1,0 +1,115 @@
+# docker-compose.yml
+# THAY THẾ TOÀN BỘ FILE docker-compose.yml GỐC BẰNG FILE NÀY
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: comic_mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  redis:
+    image: redis:latest
+    container_name: comic_redis
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: comic_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  auth-service:
+    build: ./auth-service
+    container_name: comic_auth_service
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongodb
+
+  comic-service:
+    build: ./comic-service
+    container_name: comic_comic_service
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./comic-service/uploads:/app/uploads
+    depends_on:
+      - mongodb
+
+  chapter-service:
+    build: ./chapter-service
+    container_name: comic_chapter_service
+    ports:
+      - "3003:3003"
+    volumes:
+      - ./chapter-service/uploads:/app/uploads
+    depends_on:
+      - mongodb
+
+  notification-service:
+    build: ./notification-service
+    container_name: comic_notification_service
+    ports:
+      - "3004:3004"
+    depends_on:
+      - rabbitmq
+
+  search-service:
+    build: ./search-service
+    container_name: comic_search_service
+    ports:
+      - "3005:3005"
+    depends_on:
+      - mongodb
+      - rabbitmq
+
+  # DỊCH VỤ MỚI: AI Chatbot Service
+  chatbot-service:
+    build: ./chatbot-service
+    container_name: comic_chatbot_service
+    ports:
+      - "3006:3006"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      - mongodb
+
+  # DỊCH VỤ MỚI: Payment & Order Service
+  payment-service:
+    build: ./payment-service
+    container_name: comic_payment_service
+    ports:
+      - "3007:3007"
+    depends_on:
+      - mongodb
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: comic_api_gateway
+    ports:
+      - "3000:3000"
+    depends_on:
+      - auth-service
+      - comic-service
+      - chapter-service
+      - chatbot-service
+      - payment-service
+
+  frontend:
+    build: ./frontend
+    container_name: comic_frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - api-gateway
+
+volumes:
+  mongodb_data:
