@@ -7,11 +7,13 @@ import * as jwt from 'jsonwebtoken';
 const JWT_SECRET = 'comic_secret_key';
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction) {
-  // Routes cần ADMIN
+  // Routes cần ADMIN — loại trừ các endpoint dành cho user thường
   const adminOnlyRoutes = ['/api/comics', '/api/chapters'];
+  const userComicExceptions = ['/review', '/increment-purchase'];
   const isAdminRoute =
     adminOnlyRoutes.some((route) => req.originalUrl.startsWith(route)) &&
-    ['POST', 'PATCH', 'DELETE'].includes(req.method);
+    ['POST', 'PATCH', 'DELETE'].includes(req.method) &&
+    !userComicExceptions.some((exc) => req.originalUrl.includes(exc));
 
   // Routes cần đăng nhập (USER hoặc ADMIN)
   const userProtectedRoutes = ['/api/orders'];

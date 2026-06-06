@@ -938,3 +938,153 @@ body {
   transition: background .2s;
 }
 .modal-btn-cancel:hover { background: rgba(255,255,255,0.06); }
+
+/* ===== TOP 3 HOT SECTION ===== */
+.top-section {
+  padding: 0 24px 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.top-comics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 20px;
+}
+@media (max-width: 768px) {
+  .top-comics-grid { grid-template-columns: 1fr; }
+}
+.top-comic-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform .25s, box-shadow .25s;
+}
+.top-comic-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+}
+.top-comic-card.rank-1 { border-color: rgba(255,215,0,0.45); box-shadow: 0 0 24px rgba(255,215,0,0.12); }
+.top-comic-card.rank-2 { border-color: rgba(192,192,192,0.4); }
+.top-comic-card.rank-3 { border-color: rgba(205,127,50,0.4); }
+.top-rank-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  font-size: 22px;
+  font-weight: 900;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(6px);
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+.rank-1 .top-rank-badge { color: #ffd700; }
+.rank-2 .top-rank-badge { color: #c0c0c0; }
+.rank-3 .top-rank-badge { color: #cd7f32; }
+.top-comic-cover { width: 100%; aspect-ratio: 3/4; overflow: hidden; }
+.top-comic-cover img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s; }
+.top-comic-card:hover .top-comic-cover img { transform: scale(1.05); }
+.top-comic-info { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; }
+.top-comic-info h3 { font-size: 15px; font-weight: 700; color: var(--text); margin: 0; }
+.top-author { font-size: 12px; color: var(--text2); margin: 0; }
+.top-stats { display: flex; flex-direction: column; gap: 3px; }
+.top-purchase { font-size: 12px; color: #a78bfa; font-weight: 600; }
+.top-rating { font-size: 12px; color: #fbbf24; }
+.review-count { font-size: 11px; color: var(--text2); }
+.top-price { font-size: 16px; font-weight: 700; color: var(--accent); margin-top: 4px; }
+.hot-flame {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: linear-gradient(135deg, #ff6b35, #f7c59f);
+  color: #1a0a00;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 20px;
+  letter-spacing: .5px;
+}
+
+/* ===== COMIC MINI STATS ===== */
+.comic-stats-mini {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text2);
+  margin-top: 4px;
+}
+.comic-stats-mini span { display: flex; align-items: center; gap: 3px; }
+
+/* ===== REVIEW BUTTONS IN ORDERS ===== */
+.order-review-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 0 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+.btn-review {
+  padding: 7px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(251,191,36,0.4);
+  background: rgba(251,191,36,0.1);
+  color: #fbbf24;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s, transform .15s;
+}
+.btn-review:hover:not(:disabled) {
+  background: rgba(251,191,36,0.22);
+  transform: scale(1.03);
+}
+.btn-review.reviewed, .btn-review:disabled {
+  border-color: rgba(34,197,94,0.3);
+  background: rgba(34,197,94,0.08);
+  color: #4ade80;
+  cursor: default;
+}
+
+/* ===== STAR REVIEW MODAL ===== */
+.review-modal {
+  max-width: 360px;
+  text-align: center;
+  padding: 36px 32px 28px;
+}
+.review-modal-icon { font-size: 48px; margin-bottom: 8px; }
+.review-comic-name {
+  font-size: 14px;
+  color: var(--text2);
+  margin: 4px 0 20px;
+  font-style: italic;
+}
+.star-row {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.star-btn {
+  font-size: 40px;
+  cursor: pointer;
+  color: rgba(255,255,255,0.2);
+  transition: color .15s, transform .15s;
+  line-height: 1;
+  user-select: none;
+}
+.star-btn.active { color: #fbbf24; }
+.star-btn:hover { transform: scale(1.2); }
+.star-label {
+  font-size: 14px;
+  color: var(--text2);
+  height: 20px;
+  margin-bottom: 20px;
+}

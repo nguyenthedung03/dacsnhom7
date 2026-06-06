@@ -9,6 +9,20 @@ export class PaymentService {
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
   ) {}
 
+  // Gọi comic-service để tăng purchaseCount
+  private async notifyPurchase(comicId: string, quantity: number) {
+    try {
+      await fetch(`http://comic-service:3002/comics/${comicId}/increment-purchase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity }),
+      });
+    } catch (err) {
+      // Non-blocking: không throw, chỉ log
+      console.error(`[PaymentService] Failed to increment purchase for ${comicId}:`, err);
+    }
+  }
+
   async createOrder(dto: {
     userId: string;
     userEmail: string;
@@ -28,8 +42,13 @@ export class PaymentService {
       ...dto,
       totalAmount,
       paymentRef,
-      status: dto.paymentMethod === 'COD' ? 'PENDING' : 'PENDING',
+      status: 'PENDING',
     });
+
+    // Tăng purchaseCount cho từng comic trong đơn hàng
+    for (const item of dto.items) {
+      await this.notifyPurchase(item.comicId, item.quantity);
+    }
 
     return {
       orderId: order._id,

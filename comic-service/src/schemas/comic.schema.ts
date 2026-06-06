@@ -1,5 +1,4 @@
 // comic-service/src/schemas/comic.schema.ts
-// THAY THẾ TOÀN BỘ NỘI DUNG FILE NÀY
 
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
@@ -29,21 +28,23 @@ export class Comic {
   @Prop({ default: 0 })
   viewCount: number;
 
-  // THÊM MỚI: Trường giá bán cho thương mại điện tử
   @Prop({ default: 29000 })
   price: number;
 
-  // THÊM MỚI: Số lượng tồn kho
   @Prop({ default: 100 })
   stock: number;
 
-  // THÊM MỚI: Đánh giá trung bình
+  // Đánh giá trung bình (1-5 sao)
   @Prop({ default: 0 })
   rating: number;
 
-  // THÊM MỚI: Số lượng đánh giá
+  // Số lượng đánh giá
   @Prop({ default: 0 })
   reviewCount: number;
+
+  // Số lượt mua (tăng khi đơn hàng được tạo thành công)
+  @Prop({ default: 0 })
+  purchaseCount: number;
 }
 
 export const ComicSchema = SchemaFactory.createForClass(Comic);

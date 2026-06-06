@@ -18,6 +18,7 @@ type Comic = {
   rating: number;
   reviewCount: number;
   viewCount: number;
+  purchaseCount: number;
 };
 
 type Chapter = {
@@ -143,8 +144,22 @@ function App() {
   const [chapterImages, setChapterImages] = useState<File[]>([]);
   const [adminOrders, setAdminOrders] = useState<Order[]>([]);
 
+  // ---- TOP COMICS ----
+  const [topComics, setTopComics] = useState<Comic[]>([]);
+
+  // ---- REVIEW ----
+  const [reviewOrderId, setReviewOrderId] = useState<string | null>(null);
+  const [reviewComicId, setReviewComicId] = useState<string | null>(null);
+  const [reviewComicTitle, setReviewComicTitle] = useState('');
+  const [reviewStar, setReviewStar] = useState(0);
+  const [reviewHover, setReviewHover] = useState(0);
+  const [reviewedOrders, setReviewedOrders] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('reviewedOrders') || '[]')); }
+    catch { return new Set(); }
+  });
+
   // ===================== EFFECTS =====================
-  useEffect(() => { fetchComics(); }, []);
+  useEffect(() => { fetchComics(); fetchTopComics(); }, []);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages]);
 
   // ===================== FETCH COMICS =====================
@@ -171,6 +186,52 @@ function App() {
       const data = await res.json();
       setChapters(Array.isArray(data) ? data : []);
     } catch { setChapters([]); }
+  };
+
+  // ===================== TOP COMICS =====================
+  const fetchTopComics = async () => {
+    try {
+      const res = await fetch(`${apiBase}/comics/top`);
+      const data = await res.json();
+      setTopComics(Array.isArray(data.topByPurchase) ? data.topByPurchase : []);
+    } catch { setTopComics([]); }
+  };
+
+  // ===================== REVIEW =====================
+  const openReviewModal = (orderId: string, comicId: string, comicTitle: string) => {
+    setReviewOrderId(orderId);
+    setReviewComicId(comicId);
+    setReviewComicTitle(comicTitle);
+    setReviewStar(0);
+    setReviewHover(0);
+  };
+
+  const submitReview = async () => {
+    if (!reviewComicId || reviewStar === 0) return;
+    try {
+      const res = await fetch(`${apiBase}/comics/${reviewComicId}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ star: reviewStar }),
+      });
+      const data = await res.json();
+      console.log('[Review response]', res.status, data);
+      if (!res.ok) {
+        showModal('error', 'Lỗi đánh giá', `Server trả về: ${data.message || res.status}`);
+        return;
+      }
+      const newReviewed = new Set(reviewedOrders);
+      newReviewed.add(`${reviewOrderId}_${reviewComicId}`);
+      setReviewedOrders(newReviewed);
+      localStorage.setItem('reviewedOrders', JSON.stringify([...newReviewed]));
+      setReviewOrderId(null);
+      setReviewComicId(null);
+      showModal('success', 'Cảm ơn bạn! ⭐', `Bạn đã đánh giá ${reviewStar} sao cho "${reviewComicTitle}"`);
+      // Đợi 500ms để backend cập nhật xong rồi refresh
+      setTimeout(() => { fetchTopComics(); fetchComics(); }, 500);
+    } catch {
+      showModal('error', 'Lỗi', 'Không thể gửi đánh giá. Vui lòng thử lại!');
+    }
   };
 
   // ===================== AUTH =====================
@@ -515,6 +576,44 @@ function App() {
             </div>
           </div>
 
+          {/* Top 3 Hot nhất — chỉ ẩn khi chưa load xong hoặc không có truyện nào */}
+          {topComics.length > 0 && (
+            <div className="section top-section">
+              <h2 className="section-title">🔥 Top 3 Truyện Được Mua Nhiều Nhất</h2>
+              <div className="top-comics-grid">
+                {topComics.map((comic, idx) => (
+                  <div key={comic._id} className={`top-comic-card rank-${idx + 1}`}
+                    onClick={() => { setSelectedComic(comic); fetchChapters(comic._id); setView('comicDetail'); }}>
+                    <div className="top-rank-badge">#{idx + 1}</div>
+                    <div className="top-comic-cover">
+                      <img
+                        src={getImageUrl(comic.coverImage) || `https://picsum.photos/seed/${comic._id}/300/400`}
+                        alt={comic.title}
+                        onError={e => { (e.target as HTMLImageElement).src = `https://picsum.photos/seed/${comic._id}/300/400`; }}
+                      />
+                    </div>
+                    <div className="top-comic-info">
+                      <h3>{comic.title}</h3>
+                      <p className="top-author">✍️ {comic.author}</p>
+                      <div className="top-stats">
+                        <span className="top-purchase">🛒 {comic.purchaseCount || 0} lượt mua</span>
+                        <span className="top-rating">
+                          {comic.rating > 0 ? (
+                            <>⭐ {comic.rating.toFixed(1)}<span className="review-count"> ({comic.reviewCount || 0} đánh giá)</span></>
+                          ) : (
+                            <span className="review-count">Chưa có đánh giá</span>
+                          )}
+                        </span>
+                      </div>
+                      <span className="top-price">{(comic.price || 29000).toLocaleString('vi-VN')}đ</span>
+                    </div>
+                    {idx === 0 && <div className="hot-flame">🔥 HOT</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Genre filter */}
           {allGenres.length > 0 && (
             <div className="genre-filter">
@@ -559,6 +658,12 @@ function App() {
                         <span className="comic-price">{(comic.price || 29000).toLocaleString('vi-VN')}đ</span>
                         <button className="btn-add-cart" onClick={() => addToCart(comic)}>🛒 Thêm giỏ</button>
                       </div>
+                      {(comic.purchaseCount > 0 || comic.rating > 0) && (
+                        <div className="comic-stats-mini">
+                          {comic.purchaseCount > 0 && <span>🛒 {comic.purchaseCount} mua</span>}
+                          {comic.rating > 0 && <span>⭐ {comic.rating.toFixed(1)}</span>}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -603,6 +708,10 @@ function App() {
                 <p className="detail-description">{selectedComic.description}</p>
                 <div className="detail-meta">
                   <span>👁️ {selectedComic.viewCount || 0} lượt xem</span>
+                  <span>🛒 {selectedComic.purchaseCount || 0} lượt mua</span>
+                  {selectedComic.rating > 0 && (
+                    <span>⭐ {selectedComic.rating.toFixed(1)}/5 ({selectedComic.reviewCount} đánh giá)</span>
+                  )}
                   <span className={`status-badge ${selectedComic.status === 'COMPLETED' ? 'completed' : 'ongoing'}`}>
                     {selectedComic.status === 'COMPLETED' ? '✅ Hoàn thành' : '🔄 Đang tiến hành'}
                   </span>
@@ -906,6 +1015,25 @@ function App() {
                     <span>Tổng: <strong>{order.totalAmount?.toLocaleString('vi-VN')}đ</strong></span>
                     <span className="order-date">{new Date(order.createdAt).toLocaleDateString('vi-VN')}</span>
                   </div>
+                  {/* Nút đánh giá sao — hiện sau khi đặt hàng thành công */}
+                  {(order.status === 'DELIVERED' || order.status === 'PAID' || order.status === 'PENDING') && (
+                    <div className="order-review-row">
+                      {order.items?.map((item: any, i: number) => {
+                        const reviewKey = `${order._id}_${item.comicId}`;
+                        const alreadyReviewed = reviewedOrders.has(reviewKey);
+                        return (
+                          <button
+                            key={i}
+                            className={`btn-review ${alreadyReviewed ? 'reviewed' : ''}`}
+                            disabled={alreadyReviewed}
+                            onClick={() => !alreadyReviewed && openReviewModal(order._id, item.comicId, item.title)}
+                          >
+                            {alreadyReviewed ? '✅ Đã đánh giá' : `⭐ Đánh giá "${item.title}"`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1204,6 +1332,41 @@ function App() {
                   {modal.type === 'order' ? '🛍️ Xem đơn hàng' : 'Đóng'}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ===== STAR REVIEW MODAL ===== */}
+      {reviewComicId && (
+        <div className="modal-overlay" onClick={() => setReviewComicId(null)}>
+          <div className="modal-card review-modal animate-scale-in" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setReviewComicId(null)}>✕</button>
+            <div className="review-modal-icon">⭐</div>
+            <h3 className="modal-title">Đánh giá sản phẩm</h3>
+            <p className="review-comic-name">"{reviewComicTitle}"</p>
+            <div className="star-row">
+              {[1, 2, 3, 4, 5].map(s => (
+                <span
+                  key={s}
+                  className={`star-btn ${s <= (reviewHover || reviewStar) ? 'active' : ''}`}
+                  onMouseEnter={() => setReviewHover(s)}
+                  onMouseLeave={() => setReviewHover(0)}
+                  onClick={() => setReviewStar(s)}
+                >★</span>
+              ))}
+            </div>
+            <p className="star-label">
+              {reviewStar === 0 ? 'Chọn số sao' : ['', 'Rất tệ 😞', 'Tạm được 😐', 'Bình thường 🙂', 'Tốt 😊', 'Xuất sắc 🤩'][reviewStar]}
+            </p>
+            <div className="modal-actions">
+              <button className="modal-btn modal-btn-cancel" onClick={() => setReviewComicId(null)}>Huỷ</button>
+              <button
+                className="modal-btn modal-btn-primary"
+                disabled={reviewStar === 0}
+                onClick={submitReview}
+              >
+                Gửi đánh giá
+              </button>
             </div>
           </div>
         </div>
