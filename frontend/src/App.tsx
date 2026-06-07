@@ -105,13 +105,20 @@ function App() {
 
   // ---- CHATBOT ----
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatTab, setChatTab] = useState<'chat' | 'history'>('chat');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    { role: 'assistant', content: '👋 Xin chào! Tôi là trợ lý AI của ComicVerse. Tôi có thể giúp bạn tìm truyện, tư vấn mua hàng và giải đáp thắc mắc. Bạn cần hỗ trợ gì?', timestamp: new Date() }
+    { role: 'assistant', content: '👋 Xin chào! Tôi là trợ lý AI của ComicVerse. Tôi có thể giúp bạn:\n• 🔍 Tìm & gợi ý truyện\n• 📦 Kiểm tra đơn hàng\n• 💳 Tư vấn thanh toán\n\nBạn cần hỗ trợ gì ạ?', timestamp: new Date() }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
-  const [sessionId] = useState(() => `session-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const [sessionId] = useState(() => {
+    const stored = userId ? `user-${userId}` : null;
+    return stored || `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  });
   const chatEndRef = useRef<HTMLDivElement>(null);
+  // History
+  const [userChatHistory, setUserChatHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // ---- MODAL ----
   type ModalType = 'success' | 'error' | 'info' | 'confirm' | 'order';
@@ -163,6 +170,37 @@ function App() {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages]);
 
   // ===================== FETCH COMICS =====================
+  // Normalize genres: backend lưu dạng '["Kỳ Ảo"]' hoặc ['Kỳ Ảo'] → luôn trả về string[]
+  const normalizeGenres = (genres: any): string[] => {
+    if (!genres) return [];
+    if (Array.isArray(genres)) {
+      return genres.flatMap(g => {
+        if (typeof g === 'string') {
+          const trimmed = g.trim();
+          // Nếu là JSON string như '["Kỳ Ảo","Phiêu Lưu"]'
+          if (trimmed.startsWith('[')) {
+            try { return JSON.parse(trimmed); } catch { return [trimmed]; }
+          }
+          return [trimmed];
+        }
+        return [];
+      });
+    }
+    if (typeof genres === 'string') {
+      const trimmed = genres.trim();
+      if (trimmed.startsWith('[')) {
+        try { return JSON.parse(trimmed); } catch {}
+      }
+      return trimmed ? [trimmed] : [];
+    }
+    return [];
+  };
+
+  const normalizeComic = (c: any): Comic => ({
+    ...c,
+    genres: normalizeGenres(c.genres),
+  });
+
   const fetchComics = async () => {
     try {
       setLoading(true);
@@ -171,7 +209,7 @@ function App() {
         : `${apiBase}/comics`;
       const res = await fetch(url);
       const data = await res.json();
-      setComics(Array.isArray(data) ? data : []);
+      setComics(Array.isArray(data) ? data.map(normalizeComic) : []);
     } catch (e) {
       console.error(e);
       setComics([]);
@@ -193,7 +231,7 @@ function App() {
     try {
       const res = await fetch(`${apiBase}/comics/top`);
       const data = await res.json();
-      setTopComics(Array.isArray(data.topByPurchase) ? data.topByPurchase : []);
+      setTopComics(Array.isArray(data.topByPurchase) ? data.topByPurchase.map(normalizeComic) : []);
     } catch { setTopComics([]); }
   };
 
@@ -361,12 +399,18 @@ function App() {
     setChatInput('');
     setChatMessages(prev => [...prev, { role: 'user', content: msg, timestamp: new Date() }]);
     setChatLoading(true);
-
     try {
       const res = await fetch(`${apiBase}/chatbot/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, message: msg, comicsContext: comics }),
+        body: JSON.stringify({
+          sessionId,
+          message: msg,
+          comicsContext: comics,
+          ordersContext: orders,
+          userId: userId || undefined,
+          userEmail: userEmail || undefined,
+        }),
       });
       const data = await res.json();
       setChatMessages(prev => [...prev, { role: 'assistant', content: data.message, timestamp: new Date() }]);
@@ -375,6 +419,25 @@ function App() {
     } finally {
       setChatLoading(false);
     }
+  };
+
+  const loadUserHistory = async () => {
+    if (!userId) return;
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/chatbot/user-history/${userId}`);
+      const data = await res.json();
+      setUserChatHistory(Array.isArray(data) ? data : []);
+    } catch {
+      setUserChatHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const clearSessionHistory = async () => {
+    await fetch(`${apiBase}/chatbot/history/${sessionId}`, { method: 'DELETE' });
+    setChatMessages([{ role: 'assistant', content: '🗑️ Đã xóa lịch sử chat. Tôi có thể giúp gì cho bạn?', timestamp: new Date() }]);
   };
 
   // ===================== ADMIN =====================
@@ -1225,10 +1288,11 @@ function App() {
         </div>
       )}
 
-      {/* ===== AI CHATBOT ===== */}
+      {/* ===== AI CHATBOT ENHANCED ===== */}
       <div className={`chatbot-container ${chatOpen ? 'open' : ''}`}>
         {chatOpen && (
           <div className="chatbot-window animate-scale-in">
+            {/* Header */}
             <div className="chatbot-header">
               <div className="chatbot-avatar-wrap">
                 <div className="chatbot-avatar-inner">🤖</div>
@@ -1238,52 +1302,120 @@ function App() {
                 <h4>Trợ lý ComicVerse AI</h4>
                 <span className="chatbot-status">
                   <span className="status-pulse" />
-                  Trực tuyến
+                  {userId ? `Xin chào, ${userEmail?.split('@')[0]}` : 'Trực tuyến'}
                 </span>
               </div>
-              <button className="chatbot-close" onClick={() => setChatOpen(false)}>✕</button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="chatbot-close" title="Xóa lịch sử" onClick={clearSessionHistory} style={{ fontSize: 14 }}>🗑</button>
+                <button className="chatbot-close" onClick={() => setChatOpen(false)}>✕</button>
+              </div>
             </div>
-            <div className="chatbot-messages">
-              {chatMessages.map((msg, i) => (
-                <div key={i} className={`chat-msg ${msg.role}`}>
-                  {msg.role === 'assistant' && (
-                    <div className="msg-avatar-wrap">🤖</div>
-                  )}
-                  <div className="msg-bubble">
-                    {msg.content}
-                    <span className="msg-time">
-                      {msg.timestamp.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              {chatLoading && (
-                <div className="chat-msg assistant">
-                  <div className="msg-avatar-wrap">🤖</div>
-                  <div className="msg-bubble typing"><span /><span /><span /></div>
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-            <div className="chatbot-suggestions">
-              {['🔍 Gợi ý truyện hay', '💳 Cách thanh toán?', '🔄 Chính sách đổi trả'].map(s => (
-                <button key={s} onClick={() => { setChatInput(s.replace(/^[^ ]+ /, '')); }}>
-                  {s}
+
+            {/* Tabs */}
+            <div className="chatbot-tabs">
+              {[
+                { key: 'chat', icon: '💬', label: 'Chat' },
+                { key: 'history', icon: '📋', label: 'Lịch sử' },
+              ].map(t => (
+                <button
+                  key={t.key}
+                  className={`chatbot-tab ${chatTab === t.key ? 'active' : ''}`}
+                  onClick={() => {
+                    setChatTab(t.key as any);
+                    if (t.key === 'history') loadUserHistory();
+                  }}
+                >
+                  {t.icon} {t.label}
                 </button>
               ))}
             </div>
-            <div className="chatbot-input">
-              <input
-                type="text"
-                placeholder="Nhập câu hỏi của bạn..."
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
-              />
-              <button className="chatbot-send" onClick={sendChatMessage} disabled={chatLoading}>
-                {chatLoading ? <span className="send-spinner" /> : '➤'}
-              </button>
-            </div>
+
+            {/* ── Tab: Chat ── */}
+            {chatTab === 'chat' && (
+              <>
+                <div className="chatbot-messages">
+                  {chatMessages.map((msg, i) => (
+                    <div key={i} className={`chat-msg ${msg.role}`}>
+                      {msg.role === 'assistant' && <div className="msg-avatar-wrap">🤖</div>}
+                      <div className="msg-bubble">
+                        <span style={{ whiteSpace: 'pre-line' }}>{msg.content}</span>
+                        <span className="msg-time">
+                          {msg.timestamp.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {chatLoading && (
+                    <div className="chat-msg assistant">
+                      <div className="msg-avatar-wrap">🤖</div>
+                      <div className="msg-bubble typing"><span /><span /><span /></div>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+                <div className="chatbot-suggestions">
+                  {['⭐ Gợi ý truyện hay', '📦 Kiểm tra đơn hàng', '💳 Cách thanh toán?', '🚚 Chính sách ship'].map(s => (
+                    <button key={s} onClick={() => { setChatInput(s.replace(/^[^ ]+ /, '')); }}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+                <div className="chatbot-input">
+                  <input
+                    type="text"
+                    placeholder="Nhập câu hỏi của bạn..."
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
+                  />
+                  <button className="chatbot-send" onClick={sendChatMessage} disabled={chatLoading}>
+                    {chatLoading ? <span className="send-spinner" /> : '➤'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ── Tab: History ── */}
+            {chatTab === 'history' && (
+              <div className="chatbot-panel">
+                {!userId ? (
+                  <div className="chatbot-empty" style={{ padding: 24, textAlign: 'center' }}>
+                    🔒 Đăng nhập để xem lịch sử chat được lưu<br />
+                    <button className="btn-primary" style={{ marginTop: 12, padding: '8px 20px' }} onClick={() => { setChatOpen(false); setView('login'); }}>
+                      Đăng nhập ngay
+                    </button>
+                  </div>
+                ) : historyLoading ? (
+                  <div className="chatbot-loading">⏳ Đang tải lịch sử...</div>
+                ) : userChatHistory.length === 0 ? (
+                  <div className="chatbot-empty">📭 Chưa có lịch sử chat</div>
+                ) : (
+                  <div style={{ padding: '8px 0' }}>
+                    <div style={{ padding: '6px 14px', fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>
+                      {userChatHistory.length} phiên chat gần đây
+                    </div>
+                    {userChatHistory.map((session: any) => (
+                      <div key={session.sessionId} className="chatbot-history-item">
+                        <div className="chatbot-history-preview">
+                          💬 {session.preview || 'Phiên chat'}
+                        </div>
+                        <div className="chatbot-history-meta">
+                          <span>📨 {session.messages?.length || 0} tin nhắn</span>
+                          <span>{new Date(session.lastMessage).toLocaleDateString('vi-VN')}</span>
+                        </div>
+                        <div style={{ maxHeight: 120, overflowY: 'auto', marginTop: 6 }}>
+                          {(session.messages || []).slice(-4).map((m: any, i: number) => (
+                            <div key={i} style={{ fontSize: 11, color: m.role === 'user' ? 'var(--accent)' : 'var(--text-muted)', marginBottom: 2, paddingLeft: m.role === 'assistant' ? 8 : 0 }}>
+                              <strong>{m.role === 'user' ? '👤' : '🤖'}</strong> {m.content?.slice(0, 60)}{m.content?.length > 60 ? '...' : ''}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
         <button className="chatbot-toggle" onClick={() => setChatOpen(!chatOpen)}>

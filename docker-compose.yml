@@ -76,6 +76,7 @@ services:
       - "3006:3006"
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - MONGODB_URI=mongodb://mongodb:27017/comicverse-chatbot
     depends_on:
       - mongodb
 

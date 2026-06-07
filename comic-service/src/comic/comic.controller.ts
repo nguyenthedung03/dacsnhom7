@@ -41,6 +41,14 @@ export class ComicController {
     if (file) {
       createComicDto.coverImage = `http://localhost:3002/uploads/${file.filename}`;
     }
+    // Parse genres nếu là JSON string: '["Kỳ Ảo","Phiêu Lưu"]' → ['Kỳ Ảo','Phiêu Lưu']
+    if (typeof (createComicDto as any).genres === 'string') {
+      try {
+        (createComicDto as any).genres = JSON.parse((createComicDto as any).genres);
+      } catch {
+        (createComicDto as any).genres = [(createComicDto as any).genres];
+      }
+    }
     return this.comicService.create(createComicDto);
   }
 
@@ -65,6 +73,13 @@ export class ComicController {
     @Param('id') id: string,
     @Body() updateComicDto: UpdateComicDto,
   ) {
+    if (typeof (updateComicDto as any).genres === 'string') {
+      try {
+        (updateComicDto as any).genres = JSON.parse((updateComicDto as any).genres);
+      } catch {
+        (updateComicDto as any).genres = [(updateComicDto as any).genres];
+      }
+    }
     return this.comicService.update(id, updateComicDto);
   }
 
