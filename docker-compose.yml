@@ -88,6 +88,11 @@ services:
       - "3007:3007"
     depends_on:
       - mongodb
+    environment:
+      - SEPAY_ENV=${SEPAY_ENV}
+      - SEPAY_MERCHANT_ID=${SEPAY_MERCHANT_ID}
+      - SEPAY_SECRET_KEY=${SEPAY_SECRET_KEY}
+      - FRONTEND_URL=${FRONTEND_URL}
 
   api-gateway:
     build: ./api-gateway

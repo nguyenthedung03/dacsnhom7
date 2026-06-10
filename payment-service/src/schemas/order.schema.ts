@@ -30,11 +30,15 @@ export class Order {
   })
   status: string;
 
-  @Prop({ enum: ['VNPAY', 'MOMO', 'BANK_TRANSFER', 'COD'], required: true })
+  @Prop({ enum: ['BANK_TRANSFER', 'COD'], required: true })
   paymentMethod: string;
 
   @Prop()
   paymentRef: string;
+
+  // URL ảnh QR do SePay tạo (chỉ có khi paymentMethod = BANK_TRANSFER)
+  @Prop()
+  qrCodeUrl: string;
 
   @Prop()
   shippingAddress: string;

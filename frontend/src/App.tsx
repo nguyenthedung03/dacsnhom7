@@ -48,6 +48,7 @@ type Order = {
   items: any[];
   createdAt: string;
   message?: string;
+  qrCodeUrl?: string;
 };
 
 // ===================== APP =====================
@@ -124,10 +125,10 @@ function App() {
   type ModalType = 'success' | 'error' | 'info' | 'confirm' | 'order';
   const [modal, setModal] = useState<{
     open: boolean; type: ModalType; title: string; message: string;
-    detail?: string; onConfirm?: () => void;
+    detail?: string; qrCodeUrl?: string; onConfirm?: () => void;
   }>({ open: false, type: 'info', title: '', message: '' });
-  const showModal = (type: ModalType, title: string, message: string, detail?: string, onConfirm?: () => void) =>
-    setModal({ open: true, type, title, message, detail, onConfirm });
+  const showModal = (type: ModalType, title: string, message: string, detail?: string, onConfirm?: () => void, qrCodeUrl?: string) =>
+    setModal({ open: true, type, title, message, detail, onConfirm, qrCodeUrl });
   const closeModal = () => setModal(m => ({ ...m, open: false }));
 
   // ---- ADMIN ----
@@ -373,7 +374,7 @@ function App() {
         setLastOrder(data);
         setCart([]);
         setView('orders');
-        showModal('order', 'Đặt hàng thành công! 🎉', data.message || 'Đơn hàng của bạn đã được ghi nhận.', data.paymentRef ? `Mã đơn hàng: ${data.paymentRef}` : undefined);
+        showModal('order', 'Đặt hàng thành công! 🎉', data.message || 'Đơn hàng của bạn đã được ghi nhận.', data.paymentRef ? `Mã đơn hàng: ${data.paymentRef}` : undefined, undefined, data.qrCodeUrl);
         fetchOrders();
       } else {
         showModal('error', 'Đặt hàng thất bại', 'Có lỗi xảy ra khi đặt hàng. Vui lòng thử lại.');
@@ -1450,6 +1451,29 @@ function App() {
               {modal.detail && (
                 <div className="modal-detail">
                   <code>{modal.detail}</code>
+                </div>
+              )}
+              {modal.type === 'order' && modal.qrCodeUrl && (
+                <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                    📱 Quét mã QR để thanh toán ngay
+                  </p>
+                  <img
+                    src={modal.qrCodeUrl}
+                    alt="QR thanh toán SePay"
+                    style={{
+                      width: 200,
+                      height: 200,
+                      borderRadius: 12,
+                      border: '2px solid var(--border)',
+                      display: 'block',
+                      margin: '0 auto',
+                    }}
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                    Hỗ trợ tất cả ứng dụng ngân hàng
+                  </p>
                 </div>
               )}
             </div>

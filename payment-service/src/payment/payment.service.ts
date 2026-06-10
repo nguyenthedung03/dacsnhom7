@@ -2,14 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Order, OrderDocument } from '../schemas/order.schema';
+import { SepayService } from './sepay.service';
 
 @Injectable()
 export class PaymentService {
   constructor(
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
+    private readonly sepayService: SepayService,
   ) {}
 
-  // Gọi comic-service để tăng purchaseCount
   private async notifyPurchase(comicId: string, quantity: number) {
     try {
       await fetch(`http://comic-service:3002/comics/${comicId}/increment-purchase`, {
@@ -18,7 +19,6 @@ export class PaymentService {
         body: JSON.stringify({ quantity }),
       });
     } catch (err) {
-      // Non-blocking: không throw, chỉ log
       console.error(`[PaymentService] Failed to increment purchase for ${comicId}:`, err);
     }
   }
@@ -36,16 +36,29 @@ export class PaymentService {
       0,
     );
 
-    const paymentRef = `CVS-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+    const paymentRef = `CVS${Date.now()}`;
+
+    let qrCodeUrl: string | undefined;
+
+    if (dto.paymentMethod === 'BANK_TRANSFER') {
+      const accountNumber = process.env.SEPAY_ACCOUNT_NUMBER ?? '0343522116';
+      const result = await this.sepayService.createTransactionAndGetQr({
+        accountNumber,
+        amount: totalAmount,
+        description: paymentRef,
+        referenceCode: paymentRef,
+      });
+      qrCodeUrl = result.qrUrl;
+    }
 
     const order = await this.orderModel.create({
       ...dto,
       totalAmount,
       paymentRef,
+      qrCodeUrl,
       status: 'PENDING',
     });
 
-    // Tăng purchaseCount cho từng comic trong đơn hàng
     for (const item of dto.items) {
       await this.notifyPurchase(item.comicId, item.quantity);
     }
@@ -55,6 +68,7 @@ export class PaymentService {
       paymentRef,
       totalAmount,
       status: order.status,
+      qrCodeUrl,
       message: this.getPaymentInstructions(dto.paymentMethod, paymentRef, totalAmount),
     };
   }
@@ -62,12 +76,8 @@ export class PaymentService {
   private getPaymentInstructions(method: string, ref: string, amount: number): string {
     const formatted = amount.toLocaleString('vi-VN');
     switch (method) {
-      case 'VNPAY':
-        return `Vui lòng thanh toán ${formatted}đ qua VNPay với mã giao dịch: ${ref}`;
-      case 'MOMO':
-        return `Vui lòng chuyển ${formatted}đ qua MoMo số 0901234567 với nội dung: ${ref}`;
       case 'BANK_TRANSFER':
-        return `Chuyển khoản ${formatted}đ vào TK Vietcombank 1234567890 - Chủ TK: COMICVERSE - Nội dung: ${ref}`;
+        return `Quét mã QR để chuyển khoản ${formatted}đ. Nội dung CK: ${ref}`;
       case 'COD':
         return `Đơn hàng xác nhận. Thanh toán ${formatted}đ khi nhận hàng. Mã đơn: ${ref}`;
       default:
@@ -76,10 +86,7 @@ export class PaymentService {
   }
 
   async getOrdersByUser(userId: string) {
-    return this.orderModel
-      .find({ userId })
-      .sort({ createdAt: -1 })
-      .lean();
+    return this.orderModel.find({ userId }).sort({ createdAt: -1 }).lean();
   }
 
   async getOrderById(orderId: string) {
@@ -96,6 +103,15 @@ export class PaymentService {
     );
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng');
     return order;
+  }
+
+  // Dùng bởi webhook SePay
+  async updateOrderByRef(paymentRef: string, status: string) {
+    return this.orderModel.findOneAndUpdate(
+      { paymentRef },
+      { status },
+      { new: true },
+    );
   }
 
   async getAllOrders() {

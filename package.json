@@ -1,6 +1,8 @@
 {
   "dependencies": {
     "@nestjs/passport": "^11.0.5",
+    "bcrypt": "^6.0.0",
+    "mongoose": "^9.6.3",
     "passport": "^0.7.0"
   },
   "devDependencies": {

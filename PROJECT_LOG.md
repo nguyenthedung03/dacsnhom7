@@ -170,7 +170,7 @@ Trạng thái: ✅ Hoàn thành
 
 | Role  | Email               | Password  |
 |-------|---------------------|-----------|
-| ADMIN | admin@example.com   | admin123  |
+| ADMIN | admin@example.com   | 123456    |
 
 ---
 
